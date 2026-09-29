@@ -56,6 +56,10 @@ const allowedCategories = [
 ];
 
 function validateExpense(data) {
+  if (!data || typeof data !== 'object' || Array.isArray(data)) {
+    return 'Expense data must be an object';
+  }
+
   const { title, amount, category, date } = data;
 
   if (
@@ -65,15 +69,23 @@ function validateExpense(data) {
     return 'Title is required';
   }
 
+  if (title.trim().length > 100) {
+    return 'Title must be 100 characters or fewer';
+  }
+
+  const numericAmount = Number(amount);
+
   if (
     amount === undefined ||
     amount === null ||
     amount === '' ||
     typeof amount === 'boolean' ||
-    Number.isNaN(Number(amount)) ||
-    Number(amount) <= 0
+    !['number', 'string'].includes(typeof amount) ||
+    !Number.isFinite(numericAmount) ||
+    numericAmount < 0.01 ||
+    numericAmount > 99999999.99
   ) {
-    return 'Amount must be a number greater than 0';
+    return 'Amount must be between 0.01 and 99999999.99';
   }
 
   if (!allowedCategories.includes(category)) {
@@ -87,9 +99,14 @@ function validateExpense(data) {
     return 'Date must be in YYYY-MM-DD format';
   }
 
-  const parsedDate = new Date(`${date}T00:00:00Z`);
+  const year = Number(date.slice(0, 4));
+  const parsedDate = new Date(`${date}T00:00:00.000Z`);
 
-  if (Number.isNaN(parsedDate.getTime())) {
+  if (
+    year === 0 ||
+    Number.isNaN(parsedDate.getTime()) ||
+    parsedDate.toISOString().slice(0, 10) !== date
+  ) {
     return 'Invalid date';
   }
 
@@ -176,8 +193,6 @@ app.get('/api/expenses/:id', async (req, res) => {
   Adds a new expense.
 */
 app.post('/api/expenses', async (req, res) => {
-  const { title, amount, category, date } = req.body;
-
   const validationError = validateExpense(req.body);
 
   if (validationError) {
@@ -185,6 +200,8 @@ app.post('/api/expenses', async (req, res) => {
       error: validationError
     });
   }
+
+  const { title, amount, category, date } = req.body;
 
   try {
     const query = `
@@ -225,7 +242,6 @@ app.post('/api/expenses', async (req, res) => {
 */
 app.put('/api/expenses/:id', async (req, res) => {
   const { id } = req.params;
-  const { title, amount, category, date } = req.body;
 
   if (!validateId(id)) {
     return res.status(404).json({
@@ -240,6 +256,8 @@ app.put('/api/expenses/:id', async (req, res) => {
       error: validationError
     });
   }
+
+  const { title, amount, category, date } = req.body;
 
   try {
     const query = `

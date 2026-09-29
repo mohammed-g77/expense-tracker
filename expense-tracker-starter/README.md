@@ -1,37 +1,65 @@
 # Expense Tracker
 
-<!-- Write 1-2 sentences: what does your app do? -->
+A full-stack expense tracker with a Bootstrap interface, an Express REST API, and PostgreSQL persistence. Expenses can be created, viewed, edited, deleted, filtered by category, and summarized.
 
-## How to run
+## Requirements
 
-<!-- Write the exact steps someone needs to run your project from scratch.
-     Assume they have Node.js, PostgreSQL, and VS Code, and nothing else.
-     Include: creating the database, running schema.sql, writing the .env file,
-     starting the backend, and opening the frontend. -->
+- Node.js and npm
+- PostgreSQL, with `psql` available on your command line
 
-**Backend**
+## Database setup
 
-1. ...
+From the project root, create the database and load the schema and sample rows:
 
-**Frontend**
+```sh
+psql -U postgres -c "CREATE DATABASE expense_tracker;"
+psql -U postgres -d expense_tracker -f backend/schema.sql
+```
 
-1. ...
+Create `backend/.env` with the connection settings for your local PostgreSQL installation. Change the username, password, host, or port if yours differ:
 
-## Features
+```dotenv
+DB_USER=postgres
+DB_HOST=localhost
+DB_NAME=expense_tracker
+DB_PASSWORD=your_postgres_password
+DB_PORT=5432
+PORT=3000
+```
 
-<!-- List what your app can do. Tick what you finished. -->
+The `.env` file is ignored by Git and should not be committed.
 
-- [ ] Add an expense (with validation)
-- [ ] Delete an expense
-- [ ] Edit an expense
-- [ ] Filter by category
-- [ ] Summary cards (total, count, highest)
-- [ ] Data is saved in a PostgreSQL database
+## Run the app
 
-## Screenshots
+1. Open a terminal in the project root and start the API:
 
-<!-- Add 2-3 screenshots of your app (desktop and mobile). -->
+   ```sh
+   cd backend
+   npm install
+   npm start
+   ```
 
-## What was the hardest part?
+2. Open `frontend/index.html` in a browser. Keep the API terminal running. The frontend requests `http://localhost:3000/api/expenses`.
 
-<!-- A short paragraph: what got you stuck, and how did you solve it? -->
+## API checks with Thunder Client
+
+With the backend running, send requests to `http://localhost:3000/api/expenses`:
+
+- `GET` the base URL to list expenses.
+- `GET` the base URL followed by an existing ID to retrieve one expense.
+- `POST` the base URL with JSON: `{"title":"Lunch","amount":4.5,"category":"Food","date":"2026-01-15"}`.
+- `PUT` the base URL followed by the new ID with the same JSON fields and updated values.
+- `DELETE` the base URL followed by the ID.
+
+The API accepts these categories: `Food`, `Transport`, `Bills`, `Entertainment`, and `Other`.
+
+## Feature status
+
+- [x] Add an expense with client-side and API validation
+- [x] View and delete expenses
+- [x] Edit expenses
+- [x] Filter by category
+- [x] Summary cards for total, count, and highest expense
+- [x] Persist expenses in PostgreSQL
+
+The feature list describes the checked-in implementation. Database-backed runtime behavior still depends on the local PostgreSQL setup and should be verified with the API checks above.
