@@ -1,2 +1,11 @@
-/* Your custom styles go here.
-   Use Bootstrap classes first, and write your own CSS only when you need to. */
+.expense-summary-grid {
+   display: grid;
+   grid-template-columns: repeat(3, minmax(0, 1fr));
+   gap: 1.5rem;
+}
+
+@media (max-width: 767.98px) {
+   .expense-summary-grid {
+      grid-template-columns: minmax(0, 1fr);
+   }
+}

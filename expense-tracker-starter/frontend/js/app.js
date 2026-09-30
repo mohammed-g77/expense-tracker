@@ -23,6 +23,8 @@
 //     what the server actually saved - never update the table by hand.
 //   - The API is at http://localhost:3000/api/expenses (see the Roadmap).
 
+// Expense Tracker - frontend logic
+
 const API_URL = 'http://localhost:3000/api/expenses';
 
 const tableBody = document.getElementById('expenses-table-body');
@@ -30,8 +32,13 @@ const totalElement = document.getElementById('summary-total');
 const countElement = document.getElementById('summary-count');
 const highestAmountElement = document.getElementById('summary-highest-amount');
 const highestTitleElement = document.getElementById('summary-highest-title');
+
 const form = document.getElementById('add-expense-form');
 const filterCategory = document.getElementById('filter-category');
+
+const searchTitle = document.getElementById('search-title');
+const filterMonth = document.getElementById('filter-month');
+const exportCsvButton = document.getElementById('export-csv');
 
 const loadingSpinner = document.getElementById('loading-spinner');
 const alertContainer = document.getElementById('alert-container');
@@ -41,7 +48,6 @@ const editForm = document.getElementById('edit-expense-form');
 let allExpenses = [];
 let editingExpenseId = null;
 
- //  Spinner
 function showSpinner() {
     if (loadingSpinner) {
         loadingSpinner.classList.remove('d-none');
@@ -54,49 +60,131 @@ function hideSpinner() {
     }
 }
 
-//   Alerts
 function showAlert(message, type = 'danger') {
     if (!alertContainer) return;
 
     alertContainer.innerHTML = `
         <div class="alert alert-${type} alert-dismissible fade show" role="alert">
             ${escapeHtml(message)}
-            <button type="button"
-                    class="btn-close"
-                    data-bs-dismiss="alert">
+            <button
+                type="button"
+                class="btn-close"
+                data-bs-dismiss="alert">
             </button>
         </div>
     `;
 }
 
-//   GET Expenses 
-async function getExpenses() {
+function validateExpenseForm({
+    titleInput,
+    amountInput,
+    categoryInput,
+    dateInput
+}) {
+    const inputs = [
+        titleInput,
+        amountInput,
+        categoryInput,
+        dateInput
+    ];
 
-    const response = await fetch(API_URL);
+    inputs.forEach(input => {
+        input.classList.remove('is-invalid');
+    });
 
-    const data = await response.json();
+    const title = titleInput.value.trim();
+    const amount = Number(amountInput.value);
 
-    if (!response.ok) {
-        throw new Error(
-            data.error || 'Failed to load expenses'
-        );
+    const isTitleValid =
+        title.length > 0 &&
+        title.length <= 100;
+
+    const isAmountValid =
+        amountInput.value !== '' &&
+        Number.isFinite(amount) &&
+        amount >= 0.01 &&
+        amount <= 99999999.99;
+
+    const isCategoryValid =
+        Boolean(categoryInput.value);
+
+    const isDateValid =
+        Boolean(dateInput.value);
+
+    if (!isTitleValid) {
+        titleInput.classList.add('is-invalid');
     }
 
-    return data;
+    if (!isAmountValid) {
+        amountInput.classList.add('is-invalid');
+    }
+
+    if (!isCategoryValid) {
+        categoryInput.classList.add('is-invalid');
+    }
+
+    if (!isDateValid) {
+        dateInput.classList.add('is-invalid');
+    }
+
+    if (
+        !isTitleValid ||
+        !isAmountValid ||
+        !isCategoryValid ||
+        !isDateValid
+    ) {
+        showAlert(
+            'Please fix the invalid fields.',
+            'warning'
+        );
+
+        return null;
+    }
+
+    return amount;
 }
 
+function getRequestErrorMessage(error, fallback) {
+    if (
+        error instanceof TypeError &&
+        /fetch|network/i.test(error.message)
+    ) {
+        return 'Unable to connect to the server. Make sure the backend is running.';
+    }
 
-//   Refresh
+    return error.message || fallback;
+}
+
+async function getExpenses() {
+    try {
+        const response = await fetch(API_URL);
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error(
+                data.error || 'Failed to load expenses'
+            );
+        }
+
+        return data;
+    } catch (error) {
+        throw error;
+    }
+}
+
 async function refresh() {
     showSpinner();
+
     try {
         allExpenses = await getExpenses();
         applyFilter();
     } catch (error) {
-        console.error(error);
-
         showAlert(
-            'Unable to connect to the server. Make sure the backend is running.',
+            getRequestErrorMessage(
+                error,
+                'Failed to load expenses.'
+            ),
             'danger'
         );
     } finally {
@@ -104,29 +192,25 @@ async function refresh() {
     }
 }
 
-
-//   Render App
 function renderApp(expenses) {
-
     renderTable(expenses);
 
-    // Summary always uses ALL expenses
+    // Summary always uses ALL expenses, not filtered expenses.
     renderSummary(allExpenses);
 }
 
-
-//   Render Table
 function renderTable(expenses) {
     tableBody.innerHTML = '';
+
     if (expenses.length === 0) {
         tableBody.innerHTML = `
             <tr>
-                <td colspan="5"
-                    class="text-center text-muted py-4">
+                <td colspan="5" class="text-center text-muted py-4">
                     No expenses recorded.
                 </td>
             </tr>
         `;
+
         return;
     }
 
@@ -135,16 +219,12 @@ function renderTable(expenses) {
 
         if (expense.category === 'Food') {
             badgeClass = 'bg-success';
-
         } else if (expense.category === 'Transport') {
             badgeClass = 'bg-primary';
-
         } else if (expense.category === 'Bills') {
             badgeClass = 'bg-warning text-dark';
-
         } else if (expense.category === 'Entertainment') {
             badgeClass = 'bg-danger';
-
         } else if (expense.category === 'Other') {
             badgeClass = 'bg-secondary';
         }
@@ -152,7 +232,6 @@ function renderTable(expenses) {
         const row = document.createElement('tr');
 
         row.innerHTML = `
-
             <td class="fw-semibold">
                 ${escapeHtml(expense.title)}
             </td>
@@ -183,16 +262,16 @@ function renderTable(expenses) {
                     onclick="deleteExpense(${expense.id})">
                     Delete
                 </button>
-
             </td>
         `;
+
         tableBody.appendChild(row);
     });
 }
 
-//   Render Summary
 function renderSummary(expenses) {
     const count = expenses.length;
+
     countElement.textContent = count;
 
     if (count === 0) {
@@ -230,22 +309,37 @@ function renderSummary(expenses) {
         highest.title;
 }
 
-  // Filter
-function applyFilter() {
+function getFilteredExpenses() {
+    const selectedCategory = filterCategory.value;
+    const searchTerm = searchTitle.value.trim().toLowerCase();
+    const selectedMonth = filterMonth.value;
 
-    const selectedCategory =
-        filterCategory.value;
+    return allExpenses.filter(expense => {
+        const matchesCategory =
+            selectedCategory === 'All' ||
+            expense.category === selectedCategory;
 
-    if (selectedCategory === 'All') {
-        renderApp(allExpenses);
-        return;
-    }
+        const matchesTitle =
+            searchTerm === '' ||
+            String(expense.title)
+                .toLowerCase()
+                .includes(searchTerm);
 
-    const filteredExpenses =
-        allExpenses.filter(
-            expense =>
-                expense.category === selectedCategory
+        const matchesMonth =
+            selectedMonth === '' ||
+            String(expense.date).startsWith(selectedMonth);
+
+        return (
+            matchesCategory &&
+            matchesTitle &&
+            matchesMonth
         );
+    });
+}
+
+function applyFilter() {
+    const filteredExpenses = getFilteredExpenses();
+
     renderApp(filteredExpenses);
 }
 
@@ -254,73 +348,56 @@ filterCategory.addEventListener(
     applyFilter
 );
 
-  // ADD Expense
+searchTitle.addEventListener(
+    'input',
+    applyFilter
+);
+
+filterMonth.addEventListener(
+    'change',
+    applyFilter
+);
+filterCategory.addEventListener(
+    'change',
+    applyFilter
+);
+
 form.addEventListener(
     'submit',
     async event => {
         event.preventDefault();
+
         const titleInput =
             document.getElementById('expense-title');
+
         const amountInput =
             document.getElementById('expense-amount');
+
         const categoryInput =
             document.getElementById('expense-category');
+
         const dateInput =
             document.getElementById('expense-date');
-        let isValid = true;
-
-        titleInput.classList.remove('is-invalid');
-        amountInput.classList.remove('is-invalid');
-        categoryInput.classList.remove('is-invalid');
-        dateInput.classList.remove('is-invalid');
-
-        if (!titleInput.value.trim() || titleInput.value.trim().length > 100) {
-
-            titleInput.classList.add('is-invalid');
-
-            isValid = false;
-        }
 
         const amount =
-            Number(amountInput.value);
-        if (
-            !amountInput.value ||
-            !Number.isFinite(amount) ||
-            amount < 0.01 ||
-            amount > 99999999.99
-        ) {
-            amountInput.classList.add('is-invalid');
-            isValid = false;
-        }
+            validateExpenseForm({
+                titleInput,
+                amountInput,
+                categoryInput,
+                dateInput
+            });
 
-        if (!categoryInput.value) {
-            categoryInput.classList.add('is-invalid');
-            isValid = false;
-        }
-
-        if (!dateInput.value) {
-            dateInput.classList.add('is-invalid');
-            isValid = false;
-        }
-
-        if (!isValid) {
-            showAlert(
-                'Please fix the invalid fields.',
-                'warning'
-            );
+        if (amount === null) {
             return;
         }
 
         const expenseData = {
-            title:
-                titleInput.value.trim(),
-            amount:
-                amount,
-            category:
-                categoryInput.value,
-            date:
-                dateInput.value
+            title: titleInput.value.trim(),
+            amount: amount,
+            category: categoryInput.value,
+            date: dateInput.value
         };
+
         showSpinner();
 
         try {
@@ -344,6 +421,7 @@ form.addEventListener(
                     'Failed to add expense'
                 );
             }
+
             form.reset();
 
             showAlert(
@@ -352,33 +430,31 @@ form.addEventListener(
             );
 
             await refresh();
-
         } catch (error) {
-            console.error(error);
             showAlert(
-                error.message ||
-                'Failed to add expense.',
+                getRequestErrorMessage(
+                    error,
+                    'Failed to add expense.'
+                ),
                 'danger'
             );
-
         } finally {
             hideSpinner();
         }
     }
 );
 
-   // DELETE Expense
 async function deleteExpense(id) {
-    const confirmed =
-        confirm(
-            'Are you sure you want to delete this expense?'
-        );
+    const confirmed = confirm(
+        'Are you sure you want to delete this expense?'
+    );
 
     if (!confirmed) {
         return;
     }
-    
+
     showSpinner();
+
     try {
         const response =
             await fetch(
@@ -397,17 +473,19 @@ async function deleteExpense(id) {
                 'Failed to delete expense'
             );
         }
+
         showAlert(
             'Expense deleted successfully.',
             'success'
         );
-        await refresh();
 
+        await refresh();
     } catch (error) {
-        console.error(error);
         showAlert(
-            error.message ||
-            'Failed to delete expense.',
+            getRequestErrorMessage(
+                error,
+                'Failed to delete expense.'
+            ),
             'danger'
         );
     } finally {
@@ -415,7 +493,6 @@ async function deleteExpense(id) {
     }
 }
 
-  // OPEN EDIT MODAL
 function openEditModal(id) {
     const expense =
         allExpenses.find(
@@ -427,8 +504,10 @@ function openEditModal(id) {
             'Expense not found.',
             'danger'
         );
+
         return;
     }
+
     editingExpenseId = id;
 
     document.getElementById(
@@ -456,10 +535,10 @@ function openEditModal(id) {
         bootstrap.Modal.getOrCreateInstance(
             modalElement
         );
+
     modal.show();
 }
 
-   // UPDATE Expense
 editForm.addEventListener(
     'submit',
     async event => {
@@ -469,70 +548,41 @@ editForm.addEventListener(
             document.getElementById(
                 'edit-expense-title'
             );
+
         const amountInput =
             document.getElementById(
                 'edit-expense-amount'
             );
+
         const categoryInput =
             document.getElementById(
                 'edit-expense-category'
             );
+
         const dateInput =
             document.getElementById(
                 'edit-expense-date'
             );
 
-        let isValid = true;
-
-        titleInput.classList.remove('is-invalid');
-        amountInput.classList.remove('is-invalid');
-        categoryInput.classList.remove('is-invalid');
-        dateInput.classList.remove('is-invalid');
-
-        if (!titleInput.value.trim() || titleInput.value.trim().length > 100) {
-            titleInput.classList.add('is-invalid');
-            isValid = false;
-        }
         const amount =
-            Number(amountInput.value);
+            validateExpenseForm({
+                titleInput,
+                amountInput,
+                categoryInput,
+                dateInput
+            });
 
-        if (
-            !amountInput.value ||
-            !Number.isFinite(amount) ||
-            amount < 0.01 ||
-            amount > 99999999.99
-        ) {
-            amountInput.classList.add('is-invalid');
-            isValid = false;
-        }
-
-        if (!categoryInput.value) {
-            categoryInput.classList.add('is-invalid');
-            isValid = false;
-        }
-
-        if (!dateInput.value) {
-            dateInput.classList.add('is-invalid');
-            isValid = false;
-        }
-
-        if (!isValid) {
-            showAlert(
-                'Please fix the invalid fields.',
-                'warning'
-            );
+        if (amount === null) {
             return;
         }
+
         const updatedExpense = {
-            title:
-                titleInput.value.trim(),
-            amount:
-                amount,
-            category:
-                categoryInput.value,
-            date:
-                dateInput.value
+            title: titleInput.value.trim(),
+            amount: amount,
+            category: categoryInput.value,
+            date: dateInput.value
         };
+
         showSpinner();
 
         try {
@@ -551,6 +601,7 @@ editForm.addEventListener(
                             )
                     }
                 );
+
             const data =
                 await response.json();
 
@@ -560,15 +611,20 @@ editForm.addEventListener(
                     'Failed to update expense'
                 );
             }
+
             const modalElement =
                 document.getElementById(
                     'editExpenseModal'
                 );
+
             const modal =
                 bootstrap.Modal.getInstance(
                     modalElement
                 );
-            modal.hide();
+
+            if (modal) {
+                modal.hide();
+            }
 
             showAlert(
                 'Expense updated successfully.',
@@ -577,10 +633,11 @@ editForm.addEventListener(
 
             await refresh();
         } catch (error) {
-            console.error(error);
             showAlert(
-                error.message ||
-                'Failed to update expense.',
+                getRequestErrorMessage(
+                    error,
+                    'Failed to update expense.'
+                ),
                 'danger'
             );
         } finally {
@@ -588,7 +645,7 @@ editForm.addEventListener(
         }
     }
 );
-// Escape HTML
+
 function escapeHtml(value) {
     return String(value)
         .replace(/&/g, '&amp;')
@@ -598,5 +655,78 @@ function escapeHtml(value) {
         .replace(/'/g, '&#039;');
 }
 
- //  START
+
+function escapeCsvValue(value) {
+    const stringValue = String(value ?? '');
+
+    return `"${stringValue.replace(/"/g, '""')}"`;
+}
+
+function exportExpensesToCsv() {
+    const expenses = getFilteredExpenses();
+
+    if (expenses.length === 0) {
+        showAlert(
+            'There are no expenses to export.',
+            'warning'
+        );
+
+        return;
+    }
+
+    const rows = [
+        ['Title', 'Amount', 'Category', 'Date'],
+        ...expenses.map(expense => [
+            expense.title,
+            Number(expense.amount).toFixed(2),
+            expense.category,
+            expense.date
+        ])
+    ];
+
+    const csvContent =
+        '\uFEFF' +
+        rows
+            .map(row =>
+                row
+                    .map(escapeCsvValue)
+                    .join(',')
+            )
+            .join('\r\n');
+
+    const blob = new Blob(
+        [csvContent],
+        {
+            type: 'text/csv;charset=utf-8;'
+        }
+    );
+
+    const url =
+        URL.createObjectURL(blob);
+
+    const link =
+        document.createElement('a');
+
+    link.href = url;
+    link.download = 'expenses.csv';
+
+    document.body.appendChild(link);
+
+    link.click();
+
+    link.remove();
+
+    URL.revokeObjectURL(url);
+
+    showAlert(
+        'Expenses exported successfully.',
+        'success'
+    );
+}
+
+exportCsvButton.addEventListener(
+    'click',
+    exportExpensesToCsv
+);
+
 refresh();
