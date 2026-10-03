@@ -2,6 +2,9 @@
 
 A full-stack expense tracker with a Bootstrap interface, an Express REST API, and PostgreSQL persistence. Expenses can be created, viewed, edited, deleted, filtered by category, searched by title, filtered by month, exported as CSV, and summarized.
 
+## GitHub Repository
+https://github.com/mohammed-g77/expense-tracker
+
 ## Requirements
 
 - Node.js and npm
